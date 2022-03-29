@@ -45,8 +45,9 @@ class SokobanState:
     def deadp(self, problem):
         if self.dead is None:
             self.dead = False
-            for i in range(1, len(self.data)):
-                if self.data[i] not in problem.valid_box_pos:
+            boxes = self.boxes()
+            for box in boxes:
+                if box not in problem.valid_box_pos:
                     self.dead = True
                     break
 
@@ -105,50 +106,47 @@ class SokobanProblem(util.SearchProblem):
             #calculate all simple "not-dead" states
             for target in self.targets:
                 self.simple_deadlock(target)
-
-
+                self.visited.clear()
+        self.valid_box_pos = sorted(self.valid_box_pos)
+        print(self.valid_box_pos)
 
     def can_pull_to(self, candidate, pos):
         if self.map[candidate[0]][candidate[1]].wall:
             return False
 
-        if candidate[0] == pos[0] + 1: #candidate is to the right of the box
+        if candidate[0] == pos[0] + 1: #candidate is below the box
             if self.map[candidate[0]+1][candidate[1]].floor:
                 return True
             else:
                 return False
-        elif candidate[0] == pos[0] - 1: #candidate is to the left of box
+        elif candidate[0] == pos[0] - 1: #candidate is above of box
             if self.map[candidate[0]-1][candidate[1]].floor:
                 return True
             else:
                 return False
-        elif candidate[1] == pos[1] + 1: #candidate is to below box
+        elif candidate[1] == pos[1] + 1: #candidate is to the right of box
             if self.map[candidate[0]][candidate[1]+1].floor:
                 return True
             else:
                 return False
-        elif candidate[1] == pos[1] - 1: #candidate is above the box        
+        elif candidate[1] == pos[1] - 1: #candidate is to the left of box  
             if self.map[candidate[0]][candidate[1]-1].floor:
                 return True
             else:
                 return False
     
     def simple_deadlock(self, pos):
-        queue = [(pos[0]+1,pos[1]), (pos[0]-1,pos[1]), (pos[0],pos[1]+1), (pos[0],pos[1]-1)]
+        candidates = [(pos[0]+1,pos[1]), (pos[0]-1,pos[1]), (pos[0],pos[1]+1), (pos[0],pos[1]-1)] #down, up, right, left
         
-        while len(queue) > 0:
-            candidate = queue.pop(0)
+        for candidate in candidates:
             if candidate in self.visited:
                 continue
             self.visited.append(candidate)
-
             if self.can_pull_to(candidate, pos):
-                self.valid_box_pos.append(candidate)
-                queue.append((candidate[0]+1, candidate[1]))
-                queue.append((candidate[0]-1, candidate[1]))
-                queue.append((candidate[0], candidate[1]+1))
-                queue.append((candidate[0], candidate[1]-1))
-         
+                if candidate not in self.valid_box_pos:
+                    self.valid_box_pos.append(candidate)
+                self.simple_deadlock(candidate)
+
 
     # parse the input string into game map
     # Wall              #
@@ -172,6 +170,7 @@ class SokobanProblem(util.SearchProblem):
                 self.map[-1].append(MapTile(floor=True, target=True))
                 self.init_player = coordinates()
                 self.targets.append(coordinates())
+                self.valid_box_pos.append(coordinates())
             elif c == '$':
                 self.map[-1].append(MapTile(floor=True))
                 self.init_boxes.append(coordinates())
@@ -179,9 +178,11 @@ class SokobanProblem(util.SearchProblem):
                 self.map[-1].append(MapTile(floor=True, target=True))
                 self.init_boxes.append(coordinates())
                 self.targets.append(coordinates())
+                self.valid_box_pos.append(coordinates())
             elif c == '.':
                 self.map[-1].append(MapTile(floor=True, target=True))
                 self.targets.append(coordinates())
+                self.valid_box_pos.append(coordinates())
             elif c == '\n':
                 self.map.append([])
         assert len(self.init_boxes) == len(self.targets), 'Number of boxes must match number of targets.'
