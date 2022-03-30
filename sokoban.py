@@ -113,6 +113,7 @@ class SokobanProblem(util.SearchProblem):
         self.visited = []
         self.valid_box_pos = []
         self.valid_player_pos = []
+        self.valid_player_pos_in_current_state = []
         self.valid_moves_per_location = {}
         self.parse_map(map)
 
@@ -125,11 +126,30 @@ class SokobanProblem(util.SearchProblem):
         self.find_valid_moves_per_location()
 
         # Need to find the valid positions the player can move
+        self.valid_player_pos = self.valid_box_pos
+        for pos in self.valid_box_pos:
+            self.find_valid_player_pos(pos)
         self.valid_player_pos = sorted(self.valid_player_pos)
-        print(f"Player::: {self.valid_player_pos}")
+        # print(f"--- {self.valid_player_pos}")
 
+        # Valid moves a box can make at a certain location without going to a dead end
         for key, value in self.valid_moves_per_location.items():
             print(f"For {key} the box can move: {value}")
+
+    def find_valid_player_pos(self, pos):
+        if pos not in self.valid_player_pos:
+            self.valid_player_pos.append(pos)
+        if (pos[0], pos[1]+1) not in self.valid_player_pos and self.map[pos[0]][pos[1]+1].floor:
+            self.find_valid_player_pos((pos[0], pos[1]+1))
+        if (pos[0], pos[1]-1) not in self.valid_player_pos and self.map[pos[0]][pos[1]-1].floor:
+            self.find_valid_player_pos((pos[0], pos[1]-1))
+        if (pos[0]+1, pos[1]) not in self.valid_player_pos and self.map[pos[0]+1][pos[1]].floor:
+            self.find_valid_player_pos((pos[0]+1, pos[1]))
+        if (pos[0]-1, pos[1]) not in self.valid_player_pos and self.map[pos[0]-1][pos[1]].floor:
+            self.find_valid_player_pos((pos[0]-1, pos[1]))
+        else:
+            return
+        return
 
     def find_valid_moves_per_location(self):
         for pos in self.valid_box_pos:
@@ -158,25 +178,21 @@ class SokobanProblem(util.SearchProblem):
 
         if candidate[0] == pos[0] + 1:          # candidate is below the box
             if self.map[candidate[0]+1][candidate[1]].floor:
-                self.valid_player_pos.append((candidate[0]+1, candidate[1]))
                 return True
             else:
                 return False
         elif candidate[0] == pos[0] - 1:        # candidate is above of box
             if self.map[candidate[0]-1][candidate[1]].floor:
-                self.valid_player_pos.append((candidate[0]-1, candidate[1]))
                 return True
             else:
                 return False
         elif candidate[1] == pos[1] + 1:        # candidate is to the right of box
             if self.map[candidate[0]][candidate[1]+1].floor:
-                self.valid_player_pos.append((candidate[0], candidate[1]+1))
                 return True
             else:
                 return False
         elif candidate[1] == pos[1] - 1:        # candidate is to the left of box
             if self.map[candidate[0]][candidate[1]-1].floor:
-                self.valid_player_pos.append((candidate[0], candidate[1]-1))
                 return True
             else:
                 return False
@@ -306,11 +322,37 @@ class SokobanProblemFaster(SokobanProblem):
     # code in the file in total. Your can vary substantially from this.          #
     ##############################################################################
     def expand(self, s):
-        print(s.data)
-        self.print_state(s)
-        self.find_shortest_path_to_location_move_player((7, 2), s.player())
+        # Update the valid positions a player can move to
+        self.update_valid_loc_player(s)
+
+        print("=================")
+        print(self.valid_player_pos_in_current_state)
+
+        # Finds the coordinates the player needs to move to move the box a certain direction
+        coordinate_to_move_player_to_move_box = self.move_box(box_coordinates=s.boxes()[0], direction='r')
+        print(coordinate_to_move_player_to_move_box)
+
+        # Finds the path in coordinates the player should move to move the box
+        path_to_move_to_location = self.find_shortest_path_to_location_move_player(
+            desired_location_player=coordinate_to_move_player_to_move_box,
+            start_location_player=s.player()
+        )
+        print(path_to_move_to_location)
+
+        # Converts the coordinates to 'udlr' directions
+        directions = directions_of_path(path=path_to_move_to_location)
+        print(directions)
+        print("---------")
+
+    def update_valid_loc_player(self, s):
+        self.valid_player_pos_in_current_state = self.valid_player_pos
+        for box_loc in s.boxes():
+            if box_loc in self.valid_player_pos_in_current_state:
+                self.valid_player_pos_in_current_state.remove(box_loc)
+        return
 
     def move_box(self, box_coordinates, direction):
+        player_destination_coordinates_to_move_box = None
         if direction in self.valid_moves_per_location[str(box_coordinates)]:
             if direction == 'r':
                 player_destination_coordinates_to_move_box = (box_coordinates[0], box_coordinates[1] - 1)
@@ -322,9 +364,8 @@ class SokobanProblemFaster(SokobanProblem):
                 player_destination_coordinates_to_move_box = (box_coordinates[0] + 1, box_coordinates[1])
         else:
             print("Can't move the box to this location")
-            return -1
-
-        return 1
+            return None
+        return player_destination_coordinates_to_move_box
 
     def find_shortest_path_to_location_move_player(self, desired_location_player, start_location_player):
         # Use BFS to find the shortest path to a given position. The problem is that to move the player we need all
@@ -335,16 +376,48 @@ class SokobanProblemFaster(SokobanProblem):
             path = queue.popleft()
             x, y = path[-1]
             if (x, y) == desired_location_player:
+                print(f"Path: {path}")
                 return path
 
-            print(str((x, y)))
-            # directions_xy = self.valid_moves_per_location[str((x, y))]
+            adj_loc = self.find_adj_loc((x, y))
 
-            # for x2, y2 in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-            #     if 0 <= x2 < width and 0 <= y2 < height and grid[y2][x2] != wall and (x2, y2) not in seen:
-            #         queue.append(path + [(x2, y2)])
-            #         seen.add((x2, y2))
+            for x2, y2 in adj_loc:
+                if (x2, y2) not in seen:
+                    queue.append(path + [(x2, y2)])
+                    seen.add((x2, y2))
+        print("Position not available! ")
         return
+
+    def find_adj_loc(self, loc):
+        adj_loc = []
+        if (loc[0]+1, loc[1]) in self.valid_player_pos_in_current_state:
+            adj_loc.append((loc[0]+1, loc[1]))
+        if (loc[0]-1, loc[1]) in self.valid_player_pos_in_current_state:
+            adj_loc.append((loc[0]-1, loc[1]))
+        if (loc[0], loc[1]+1) in self.valid_player_pos_in_current_state:
+            adj_loc.append((loc[0], loc[1]+1))
+        if (loc[0], loc[1]-1) in self.valid_player_pos_in_current_state:
+            adj_loc.append((loc[0], loc[1]-1))
+        return adj_loc
+
+
+# Given a certain path of coordinates, returns the "rldu" directions
+def directions_of_path(path):
+    directions = []
+    prev_position = None
+    for pos in path:
+        if prev_position is not None:
+            diff_row, diff_col = pos[0] - prev_position[0], pos[1] - prev_position[1]
+            if diff_row == -1:
+                directions.append('u')
+            elif diff_row == 1:
+                directions.append('d')
+            elif diff_col == -1:
+                directions.append('l')
+            elif diff_col == 1:
+                directions.append('r')
+        prev_position = pos
+    return directions
 
 
 class Heuristic:
@@ -397,7 +470,7 @@ def solve_sokoban(map, algorithm='ucs', dead_detection=False):
     if search.actions is not None:
         print('length {} soln is {}'.format(len(search.actions), search.actions))
     if 'f' in algorithm:
-        raise NotImplementedError('Override me')
+        raise NotImplementedError('Override me')    # TODO: Need to change
     else:
         return search.totalCost, search.actions, search.numStatesExplored
 
