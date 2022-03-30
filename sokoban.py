@@ -114,6 +114,7 @@ class SokobanProblem(util.SearchProblem):
         self.valid_box_pos = []
         self.valid_player_pos = []
         self.valid_player_pos_in_current_state = []
+        self.valid_box_pos_in_current_state = []
         self.valid_moves_per_location = {}
         self.parse_map(map)
 
@@ -126,15 +127,14 @@ class SokobanProblem(util.SearchProblem):
         self.find_valid_moves_per_location()
 
         # Need to find the valid positions the player can move
-        self.valid_player_pos = self.valid_box_pos
+        self.valid_player_pos = self.valid_box_pos.copy()
         for pos in self.valid_box_pos:
             self.find_valid_player_pos(pos)
         self.valid_player_pos = sorted(self.valid_player_pos)
-        # print(f"--- {self.valid_player_pos}")
 
         # Valid moves a box can make at a certain location without going to a dead end
-        for key, value in self.valid_moves_per_location.items():
-            print(f"For {key} the box can move: {value}")
+        # for key, value in self.valid_moves_per_location.items():
+        #     print(f"For {key} the box can move: {value}")
 
     def find_valid_player_pos(self, pos):
         if pos not in self.valid_player_pos:
@@ -322,30 +322,51 @@ class SokobanProblemFaster(SokobanProblem):
     # code in the file in total. Your can vary substantially from this.          #
     ##############################################################################
     def expand(self, s):
-        # Update the valid positions a player can move to
+        list_new_states = []
+
+        # Update the valid positions a player and box can move to
         self.update_valid_loc_player(s)
+        self.update_valid_loc_box(s)
 
-        print("=================")
-        print(self.valid_player_pos_in_current_state)
+        for i, box_loc in enumerate(s.boxes()):
+            # print(f"For {box_loc}")
+            valid_moves_box_loc = list(self.valid_moves_per_location[str(box_loc)])
+            for move in valid_moves_box_loc:
+                player_dest_to_move_box, moved_box_pos, is_pos_valid = self.move_box(box_coordinates=box_loc, direction=move)
+                if is_pos_valid:
+                    action_by_player = self.find_shortest_path_to_location_move_player(
+                        desired_location_player=player_dest_to_move_box,
+                        start_location_player=s.player()
+                    )
+                    if action_by_player is not None:
+                        action_by_player.append(box_loc)
+                        action_by_player_directions = directions_of_path(action_by_player)
+                        boxes_new_state = list(s.boxes()).copy()
+                        boxes_new_state[i] = moved_box_pos
+                        # box_loc ends up being final player location
+                        new_state = (box_loc, tuple(boxes_new_state))
+                        cost = 1                            # Can be changed later
+                        list_new_states.append((action_by_player_directions, new_state, cost))
 
-        # Finds the coordinates the player needs to move to move the box a certain direction
-        coordinate_to_move_player_to_move_box = self.move_box(box_coordinates=s.boxes()[0], direction='r')
-        print(coordinate_to_move_player_to_move_box)
+        # print(list_new_states)
+        # for new_state in list_new_states:
+        #     print(f"Action: {new_state[0]}")
+        #     print(f"New State: {new_state[1]}")
+        #     print(f"Cost: {new_state[2]}")
 
-        # Finds the path in coordinates the player should move to move the box
-        path_to_move_to_location = self.find_shortest_path_to_location_move_player(
-            desired_location_player=coordinate_to_move_player_to_move_box,
-            start_location_player=s.player()
-        )
-        print(path_to_move_to_location)
+        return list_new_states
 
-        # Converts the coordinates to 'udlr' directions
-        directions = directions_of_path(path=path_to_move_to_location)
-        print(directions)
-        print("---------")
+    def update_valid_loc_box(self, s):
+        self.valid_box_pos_in_current_state = self.valid_box_pos.copy()
+        # print(f"PRE {self.valid_box_pos_in_current_state}")
+        for box_loc in s.boxes():
+            if box_loc in self.valid_box_pos_in_current_state:
+                self.valid_box_pos_in_current_state.remove(box_loc)
+        # print(f"UPDATE {self.valid_box_pos_in_current_state}")
+        return
 
     def update_valid_loc_player(self, s):
-        self.valid_player_pos_in_current_state = self.valid_player_pos
+        self.valid_player_pos_in_current_state = self.valid_player_pos.copy()
         for box_loc in s.boxes():
             if box_loc in self.valid_player_pos_in_current_state:
                 self.valid_player_pos_in_current_state.remove(box_loc)
@@ -353,19 +374,33 @@ class SokobanProblemFaster(SokobanProblem):
 
     def move_box(self, box_coordinates, direction):
         player_destination_coordinates_to_move_box = None
+        desired_location_to_move = None
+        is_position_available = False
         if direction in self.valid_moves_per_location[str(box_coordinates)]:
             if direction == 'r':
                 player_destination_coordinates_to_move_box = (box_coordinates[0], box_coordinates[1] - 1)
+                desired_location_to_move = (box_coordinates[0], box_coordinates[1] + 1)
+                if desired_location_to_move in self.valid_box_pos_in_current_state:
+                    is_position_available = True
             elif direction == 'l':
                 player_destination_coordinates_to_move_box = (box_coordinates[0], box_coordinates[1] + 1)
+                desired_location_to_move = (box_coordinates[0], box_coordinates[1] - 1)
+                if desired_location_to_move in self.valid_box_pos_in_current_state:
+                    is_position_available = True
             elif direction == 'd':
                 player_destination_coordinates_to_move_box = (box_coordinates[0] - 1, box_coordinates[1])
+                desired_location_to_move = (box_coordinates[0]+1, box_coordinates[1])
+                if desired_location_to_move in self.valid_box_pos_in_current_state:
+                    is_position_available = True
             elif direction == 'u':
                 player_destination_coordinates_to_move_box = (box_coordinates[0] + 1, box_coordinates[1])
+                desired_location_to_move = (box_coordinates[0]-1, box_coordinates[1])
+                if desired_location_to_move in self.valid_box_pos_in_current_state:
+                    is_position_available = True
         else:
             print("Can't move the box to this location")
-            return None
-        return player_destination_coordinates_to_move_box
+            return None, None, False
+        return player_destination_coordinates_to_move_box, desired_location_to_move, is_position_available
 
     def find_shortest_path_to_location_move_player(self, desired_location_player, start_location_player):
         # Use BFS to find the shortest path to a given position. The problem is that to move the player we need all
@@ -376,7 +411,7 @@ class SokobanProblemFaster(SokobanProblem):
             path = queue.popleft()
             x, y = path[-1]
             if (x, y) == desired_location_player:
-                print(f"Path: {path}")
+                # print(f"Path: {path}")
                 return path
 
             adj_loc = self.find_adj_loc((x, y))
@@ -385,8 +420,7 @@ class SokobanProblemFaster(SokobanProblem):
                 if (x2, y2) not in seen:
                     queue.append(path + [(x2, y2)])
                     seen.add((x2, y2))
-        print("Position not available! ")
-        return
+        return None
 
     def find_adj_loc(self, loc):
         adj_loc = []
