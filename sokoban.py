@@ -3,6 +3,8 @@ import os, sys
 import datetime, time
 import argparse
 import signal, gc
+import collections
+
 
 class SokobanState:
     # player: 2-tuple representing player location (coordinates)
@@ -19,22 +21,29 @@ class SokobanState:
 
     def __str__(self):
         return 'player: ' + str(self.player()) + ' boxes: ' + str(self.boxes())
+
     def __eq__(self, other):
         return type(self) == type(other) and self.data == other.data
+
     def __lt__(self, other):
         return self.data < other.data
+
     def __hash__(self):
         return hash(self.data)
+
     # return player location
     def player(self):
         return self.data[0]
+
     # return boxes locations
     def boxes(self):
         return self.data[1:]
+
     def is_goal(self, problem):
         if self.solved is None:
             self.solved = all(problem.map[b[0]][b[1]].target for b in self.boxes())
         return self.solved
+
     def act(self, problem, act):
         if act in self.adj: return self.adj[act]
         else:
@@ -63,11 +72,13 @@ class SokobanState:
             self.all_adj_cache = succ
         return self.all_adj_cache
 
+
 class MapTile:
     def __init__(self, wall=False, floor=False, target=False):
         self.wall = wall
         self.floor = floor
         self.target = target
+
 
 def parse_move(move):
     if move == 'u': return (-1,0)
@@ -75,6 +86,7 @@ def parse_move(move):
     elif move == 'l': return (0,-1)
     elif move == 'r': return (0,1)
     raise Exception('Invalid move character.')
+
 
 class DrawObj:
     WALL = '\033[37;47m \033[0m'
@@ -100,43 +112,77 @@ class SokobanProblem(util.SearchProblem):
         self.targets = []
         self.visited = []
         self.valid_box_pos = []
+        self.valid_player_pos = []
+        self.valid_moves_per_location = {}
         self.parse_map(map)
 
         if self.dead_detection:
-            #calculate all simple "not-dead" states
+            # calculate all simple "not-dead" states
             for target in self.targets:
                 self.simple_deadlock(target)
                 self.visited.clear()
         self.valid_box_pos = sorted(self.valid_box_pos)
-        print(self.valid_box_pos)
+        self.find_valid_moves_per_location()
+
+        # Need to find the valid positions the player can move
+        self.valid_player_pos = sorted(self.valid_player_pos)
+        print(f"Player::: {self.valid_player_pos}")
+
+        for key, value in self.valid_moves_per_location.items():
+            print(f"For {key} the box can move: {value}")
+
+    def find_valid_moves_per_location(self):
+        for pos in self.valid_box_pos:
+            self.valid_moves_per_location[str(pos)] = ""
+            self.find_valid_moves_helper(pos[0], pos[1], pos)
+        return
+
+    def find_valid_moves_helper(self, curr_row, curr_col, pos):
+        # check if position to the right is available
+        if (curr_row+1, curr_col) in self.valid_box_pos and self.map[curr_row - 1][curr_col].floor:
+            self.valid_moves_per_location[str(pos)] += 'd'
+        # check if position to the left is available
+        if (curr_row - 1, curr_col) in self.valid_box_pos and self.map[curr_row + 1][curr_col].floor:
+            self.valid_moves_per_location[str(pos)] += 'u'
+        # check if position up is available
+        if (curr_row, curr_col - 1) in self.valid_box_pos and self.map[curr_row][curr_col + 1].floor:
+            self.valid_moves_per_location[str(pos)] += 'l'
+        # check if position down is available
+        if (curr_row, curr_col + 1) in self.valid_box_pos and self.map[curr_row][curr_col - 1].floor:
+            self.valid_moves_per_location[str(pos)] += 'r'
+        return
 
     def can_pull_to(self, candidate, pos):
         if self.map[candidate[0]][candidate[1]].wall:
             return False
 
-        if candidate[0] == pos[0] + 1: #candidate is below the box
+        if candidate[0] == pos[0] + 1:          # candidate is below the box
             if self.map[candidate[0]+1][candidate[1]].floor:
+                self.valid_player_pos.append((candidate[0]+1, candidate[1]))
                 return True
             else:
                 return False
-        elif candidate[0] == pos[0] - 1: #candidate is above of box
+        elif candidate[0] == pos[0] - 1:        # candidate is above of box
             if self.map[candidate[0]-1][candidate[1]].floor:
+                self.valid_player_pos.append((candidate[0]-1, candidate[1]))
                 return True
             else:
                 return False
-        elif candidate[1] == pos[1] + 1: #candidate is to the right of box
+        elif candidate[1] == pos[1] + 1:        # candidate is to the right of box
             if self.map[candidate[0]][candidate[1]+1].floor:
+                self.valid_player_pos.append((candidate[0], candidate[1]+1))
                 return True
             else:
                 return False
-        elif candidate[1] == pos[1] - 1: #candidate is to the left of box  
+        elif candidate[1] == pos[1] - 1:        # candidate is to the left of box
             if self.map[candidate[0]][candidate[1]-1].floor:
+                self.valid_player_pos.append((candidate[0], candidate[1]-1))
                 return True
             else:
                 return False
     
     def simple_deadlock(self, pos):
-        candidates = [(pos[0]+1,pos[1]), (pos[0]-1,pos[1]), (pos[0],pos[1]+1), (pos[0],pos[1]-1)] #down, up, right, left
+        candidates = [(pos[0]+1, pos[1]), (pos[0]-1, pos[1]), (pos[0], pos[1]+1), (pos[0], pos[1]-1)]       # down, up, right, left
         
         for candidate in candidates:
             if candidate in self.visited:
@@ -146,7 +192,6 @@ class SokobanProblem(util.SearchProblem):
                 if candidate not in self.valid_box_pos:
                     self.valid_box_pos.append(candidate)
                 self.simple_deadlock(candidate)
-
 
     # parse the input string into game map
     # Wall              #
@@ -192,8 +237,8 @@ class SokobanProblem(util.SearchProblem):
         for row in range(len(self.map)):
             for col in range(len(self.map[row])):
                 target = self.map[row][col].target
-                box = (row,col) in s.boxes()
-                player = (row,col) == s.player()
+                box = (row, col) in s.boxes()
+                player = (row, col) == s.player()
                 if box and target: print(DrawObj.BOX_ON, end='')
                 elif player and target: print(DrawObj.PLAYER, end='')
                 elif target: print(DrawObj.TARGET, end='')
@@ -249,6 +294,7 @@ class SokobanProblem(util.SearchProblem):
             return []
         return s.all_adj(self)
 
+
 class SokobanProblemFaster(SokobanProblem):
     ##############################################################################
     # Problem 2: Action compression                                              #
@@ -260,7 +306,46 @@ class SokobanProblemFaster(SokobanProblem):
     # code in the file in total. Your can vary substantially from this.          #
     ##############################################################################
     def expand(self, s):
-        raise NotImplementedError('Override me')
+        print(s.data)
+        self.print_state(s)
+        self.find_shortest_path_to_location_move_player((7, 2), s.player())
+
+    def move_box(self, box_coordinates, direction):
+        if direction in self.valid_moves_per_location[str(box_coordinates)]:
+            if direction == 'r':
+                player_destination_coordinates_to_move_box = (box_coordinates[0], box_coordinates[1] - 1)
+            elif direction == 'l':
+                player_destination_coordinates_to_move_box = (box_coordinates[0], box_coordinates[1] + 1)
+            elif direction == 'd':
+                player_destination_coordinates_to_move_box = (box_coordinates[0] - 1, box_coordinates[1])
+            elif direction == 'u':
+                player_destination_coordinates_to_move_box = (box_coordinates[0] + 1, box_coordinates[1])
+        else:
+            print("Can't move the box to this location")
+            return -1
+
+        return 1
+
+    def find_shortest_path_to_location_move_player(self, desired_location_player, start_location_player):
+        # Use BFS to find the shortest path to a given position. The problem is that to move the player we need all
+        # the positions the player can move to, basically all the ones inside the box
+        queue = collections.deque([[start_location_player]])
+        seen = {start_location_player}
+        while queue:
+            path = queue.popleft()
+            x, y = path[-1]
+            if (x, y) == desired_location_player:
+                return path
+
+            print(str((x, y)))
+            # directions_xy = self.valid_moves_per_location[str((x, y))]
+
+            # for x2, y2 in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            #     if 0 <= x2 < width and 0 <= y2 < height and grid[y2][x2] != wall and (x2, y2) not in seen:
+            #         queue.append(path + [(x2, y2)])
+            #         seen.add((x2, y2))
+        return
+
 
 class Heuristic:
     def __init__(self, problem):
@@ -290,6 +375,7 @@ class Heuristic:
     def heuristic2(self, s):
         raise NotImplementedError('Override me')
 
+
 # solve sokoban map using specified algorithm
 #  algorithm can be ucs a a2 fa fa2
 def solve_sokoban(map, algorithm='ucs', dead_detection=False):
@@ -315,6 +401,7 @@ def solve_sokoban(map, algorithm='ucs', dead_detection=False):
     else:
         return search.totalCost, search.actions, search.numStatesExplored
 
+
 # let the user play the map
 def play_map_interactively(map, dt=0.2):
 
@@ -339,7 +426,7 @@ def play_map_interactively(map, dt=0.2):
                 return
 
         os.system(clear)
-        if seq!="":
+        if seq != "":
             print(seq[:i] + DrawObj.UNDERLINE + seq[i] + DrawObj.END + seq[i+1:])
         problem.print_state(state)
 
@@ -370,6 +457,7 @@ def play_map_interactively(map, dt=0.2):
             return
         i = i + 1
 
+
 # animate the sequence of actions in sokoban map
 def animate_sokoban_solution(map, seq, dt=0.2):
     problem = SokobanProblem(map)
@@ -386,6 +474,7 @@ def animate_sokoban_solution(map, seq, dt=0.2):
     os.system(clear)
     print(seq)
     problem.print_state(state)
+
 
 # read level map from file, returns map represented as string
 def read_map_from_file(file, level):
@@ -409,6 +498,7 @@ def read_map_from_file(file, level):
         raise Exception('Level ' + level + ' not found')
     return map.strip('\n')
 
+
 # extract all levels from file
 def extract_levels(file):
     levels = []
@@ -417,6 +507,7 @@ def extract_levels(file):
             if line.strip().lower()[:5] == 'level':
                 levels += [line.strip().lower()[6:]]
     return levels
+
 
 def extract_timeout(file, level):
     start = False
@@ -437,6 +528,7 @@ def extract_timeout(file, level):
         raise Exception('Level ' + level + ' not found')
     return None
 
+
 def solve_map(file, level, algorithm, dead, simulate):
     map = read_map_from_file(file, level)
     print(map)
@@ -456,6 +548,7 @@ def solve_map(file, level, algorithm, dead, simulate):
             animate_sokoban_solution(map, seq)
         return (toc - tic).seconds + (toc - tic).microseconds/1e6
 
+
 def main():
     parser = argparse.ArgumentParser(description="Solve Sokoban map")
     parser.add_argument("level", help="Level name or 'all'")
@@ -473,14 +566,14 @@ def main():
     file = args.file
     maxSeconds = args.timeout
 
-    if (algorithm == 'all' and level == 'all'):
+    if algorithm == 'all' and level == 'all':
         raise Exception('Cannot do all levels with all algorithms')
 
     def solve_now(): return solve_map(file, level, algorithm, dead, simulate)
 
     def solve_with_timeout(timeout):
-        level_timeout = extract_timeout(file,level)
-        if level_timeout != None: timeout = level_timeout
+        level_timeout = extract_timeout(file, level)
+        if level_timeout is not None: timeout = level_timeout
 
         try:
             return util.TimeoutFunction(solve_now, timeout)()
@@ -504,10 +597,10 @@ def main():
             print('Starting level {}'.format(level), file=sys.stderr)
             sys.stdout.flush()
             result = solve_with_timeout(maxSeconds)
-            if result != None:
+            if result is not None:
                 solved += 1
                 time_used += result
-        print (f'\n\nOVERALL RESULT: {solved} levels solved out of {len(levels)} ({100.0*solved/len(levels)})% using {time_used:.3f} seconds')
+        print(f'\n\nOVERALL RESULT: {solved} levels solved out of {len(levels)} ({100.0*solved/len(levels)})% using {time_used:.3f} seconds')
     elif algorithm == 'all':
         for algorithm in ['ucs', 'a', 'a2', 'f', 'fa', 'fa2']:
             print('Starting algorithm {}'.format(algorithm), file=sys.stderr)
@@ -517,6 +610,7 @@ def main():
         solve_now()
     else:
         solve_with_timeout(maxSeconds)
+
 
 if __name__ == '__main__':
     main()
