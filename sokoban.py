@@ -118,7 +118,7 @@ class SokobanProblem(util.SearchProblem):
         self.valid_moves_per_location = {}
         self.parse_map(map)
 
-        #Dead-end Detection Computation - self.valid_box_pos will hold all "not-dead" box locations
+        # Dead-end Detection Computation - self.valid_box_pos will hold all "not-dead" box locations
         if self.dead_detection:
             for target in self.targets:
                 self.valid_box_pos.append(target)
@@ -327,14 +327,16 @@ class SokobanProblemFaster(SokobanProblem):
         list_new_states = []
 
         # Update the valid positions a player and box can move to
-        self.update_valid_loc_player(s)
-        self.update_valid_loc_box(s)
+        self.update_valid_loc_box_player(s)
 
         for i, box_loc in enumerate(s.boxes()):
             # print(f"For {box_loc}")
             valid_moves_box_loc = list(self.valid_moves_per_location[str(box_loc)])
             for move in valid_moves_box_loc:
-                player_dest_to_move_box, moved_box_pos, is_pos_valid = self.move_box(box_coordinates=box_loc, direction=move)
+                player_dest_to_move_box, moved_box_pos, is_pos_valid = self.move_box(
+                    box_coordinates=box_loc,
+                    direction=move
+                )
                 if is_pos_valid:
                     action_by_player = self.find_shortest_path_to_location_move_player(
                         desired_location_player=player_dest_to_move_box,
@@ -358,20 +360,17 @@ class SokobanProblemFaster(SokobanProblem):
 
         return list_new_states
 
-    def update_valid_loc_box(self, s):
+    def update_valid_loc_box_player(self, s):
         self.valid_box_pos_in_current_state = self.valid_box_pos.copy()
+        self.valid_player_pos_in_current_state = self.valid_player_pos.copy()
+
         # print(f"PRE {self.valid_box_pos_in_current_state}")
         for box_loc in s.boxes():
             if box_loc in self.valid_box_pos_in_current_state:
                 self.valid_box_pos_in_current_state.remove(box_loc)
-        # print(f"UPDATE {self.valid_box_pos_in_current_state}")
-        return
-
-    def update_valid_loc_player(self, s):
-        self.valid_player_pos_in_current_state = self.valid_player_pos.copy()
-        for box_loc in s.boxes():
             if box_loc in self.valid_player_pos_in_current_state:
                 self.valid_player_pos_in_current_state.remove(box_loc)
+        # print(f"UPDATE {self.valid_box_pos_in_current_state}")
         return
 
     def move_box(self, box_coordinates, direction):
