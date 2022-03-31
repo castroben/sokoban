@@ -4,6 +4,7 @@ import datetime, time
 import argparse
 import signal, gc
 import collections
+import copy
 
 
 class SokobanState:
@@ -71,6 +72,8 @@ class SokobanState:
         return self.all_adj_cache
 
 
+
+
 class MapTile:
     def __init__(self, wall=False, floor=False, target=False):
         self.wall = wall
@@ -115,8 +118,8 @@ class SokobanProblem(util.SearchProblem):
         self.valid_moves_per_location = {}
         self.parse_map(map)
 
+        #Dead-end Detection Computation - self.valid_box_pos will hold all "not-dead" box locations
         if self.dead_detection:
-            #calculate all simple "not-dead" states
             for target in self.targets:
                 self.valid_box_pos.append(target)
                 visited = []
@@ -343,8 +346,8 @@ class SokobanProblemFaster(SokobanProblem):
                         boxes_new_state = list(s.boxes()).copy()
                         boxes_new_state[i] = moved_box_pos
                         # box_loc ends up being final player location
-                        new_state = (box_loc, tuple(boxes_new_state))
-                        cost = 1                            # Can be changed later
+                        new_state = SokobanState(box_loc, tuple(boxes_new_state))
+                        cost = len(action_by_player)                         # Can be changed later
                         list_new_states.append((action_by_player_directions, new_state, cost))
 
         # print(list_new_states)
@@ -515,7 +518,11 @@ def solve_sokoban(map, algorithm='ucs', dead_detection=False):
     if search.actions is not None:
         print('length {} soln is {}'.format(len(search.actions), search.actions))
     if 'f' in algorithm:
-        raise NotImplementedError('Override me')    # TODO: Need to change
+        actions = []
+        for list in search.actions:
+            for action in list:
+                actions.append(action)
+        return search.totalCost, actions, search.numStatesExplored
     else:
         return search.totalCost, search.actions, search.numStatesExplored
 
