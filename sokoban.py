@@ -17,7 +17,6 @@ class SokobanState:
         self.adj = {}
         self.dead = None
         self.solved = None
-        self.visited = []
 
     def __str__(self):
         return 'player: ' + str(self.player()) + ' boxes: ' + str(self.boxes())
@@ -59,7 +58,6 @@ class SokobanState:
                 if box not in problem.valid_box_pos:
                     self.dead = True
                     break
-
         return self.dead
 
     def all_adj(self, problem):
@@ -110,7 +108,6 @@ class SokobanProblem(util.SearchProblem):
         self.init_boxes = []
         self.numboxes = 0
         self.targets = []
-        self.visited = []
         self.valid_box_pos = []
         self.valid_player_pos = []
         self.valid_player_pos_in_current_state = []
@@ -119,11 +116,13 @@ class SokobanProblem(util.SearchProblem):
         self.parse_map(map)
 
         if self.dead_detection:
-            # calculate all simple "not-dead" states
+            #calculate all simple "not-dead" states
             for target in self.targets:
-                self.simple_deadlock(target)
-                self.visited.clear()
+                self.valid_box_pos.append(target)
+                visited = []
+                self.simple_deadlock(target, visited)
         self.valid_box_pos = sorted(self.valid_box_pos)
+        
         self.find_valid_moves_per_location()
 
         # Need to find the valid positions the player can move
@@ -176,38 +175,41 @@ class SokobanProblem(util.SearchProblem):
         if self.map[candidate[0]][candidate[1]].wall:
             return False
 
-        if candidate[0] == pos[0] + 1:          # candidate is below the box
+        if candidate[0] == pos[0] + 1: #candidate is below the box
             if self.map[candidate[0]+1][candidate[1]].floor:
                 return True
             else:
                 return False
-        elif candidate[0] == pos[0] - 1:        # candidate is above of box
+        elif candidate[0] == pos[0] - 1: #candidate is above of box
             if self.map[candidate[0]-1][candidate[1]].floor:
                 return True
             else:
                 return False
-        elif candidate[1] == pos[1] + 1:        # candidate is to the right of box
+        elif candidate[1] == pos[1] + 1: #candidate is to the right of box
             if self.map[candidate[0]][candidate[1]+1].floor:
                 return True
             else:
                 return False
-        elif candidate[1] == pos[1] - 1:        # candidate is to the left of box
+        elif candidate[1] == pos[1] - 1: #candidate is to the left of box  
             if self.map[candidate[0]][candidate[1]-1].floor:
                 return True
             else:
                 return False
     
-    def simple_deadlock(self, pos):
-        candidates = [(pos[0]+1, pos[1]), (pos[0]-1, pos[1]), (pos[0], pos[1]+1), (pos[0], pos[1]-1)]       # down, up, right, left
-        
+    def simple_deadlock(self, pos, visited):
+        visited_copy = copy.deepcopy(visited)
+        visited_copy.append(pos)
+
+        candidates = [(pos[0]+1,pos[1]), (pos[0]-1,pos[1]), (pos[0],pos[1]+1), (pos[0],pos[1]-1)] #down, up, right, left
+
         for candidate in candidates:
-            if candidate in self.visited:
+            if candidate in visited:
                 continue
-            self.visited.append(candidate)
             if self.can_pull_to(candidate, pos):
                 if candidate not in self.valid_box_pos:
                     self.valid_box_pos.append(candidate)
-                self.simple_deadlock(candidate)
+                self.simple_deadlock(candidate, visited_copy)
+
 
     # parse the input string into game map
     # Wall              #
@@ -231,7 +233,6 @@ class SokobanProblem(util.SearchProblem):
                 self.map[-1].append(MapTile(floor=True, target=True))
                 self.init_player = coordinates()
                 self.targets.append(coordinates())
-                self.valid_box_pos.append(coordinates())
             elif c == '$':
                 self.map[-1].append(MapTile(floor=True))
                 self.init_boxes.append(coordinates())
@@ -239,11 +240,9 @@ class SokobanProblem(util.SearchProblem):
                 self.map[-1].append(MapTile(floor=True, target=True))
                 self.init_boxes.append(coordinates())
                 self.targets.append(coordinates())
-                self.valid_box_pos.append(coordinates())
             elif c == '.':
                 self.map[-1].append(MapTile(floor=True, target=True))
                 self.targets.append(coordinates())
-                self.valid_box_pos.append(coordinates())
             elif c == '\n':
                 self.map.append([])
         assert len(self.init_boxes) == len(self.targets), 'Number of boxes must match number of targets.'
@@ -467,7 +466,19 @@ class Heuristic:
     # code in the file in total. Your can vary substantially from this.          #
     ##############################################################################
     def heuristic(self, s):
-        raise NotImplementedError('Override me')
+        boxes = s.boxes()
+        targets = self.problem.targets
+        result = 0
+
+        for box in boxes:
+            min = float('inf')
+            for target in targets:
+                temp_dist = abs(box[0]-target[0]) + abs(box[1]-target[1])
+                if temp_dist < min:
+                    min = temp_dist
+            result += min
+
+        return result
 
     ##############################################################################
     # Problem 4: Better heuristic.                                               #
