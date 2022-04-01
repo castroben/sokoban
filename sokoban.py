@@ -358,8 +358,8 @@ class SokobanProblemFaster(SokobanProblem):
                         boxes_new_state[i] = moved_box_pos
                         # box_loc ends up being final player location
                         new_state = SokobanState(box_loc, tuple(boxes_new_state))
-                        cost = len(action_by_player)                         # Can be changed later
-                        list_new_states.append((action_by_player_directions, new_state, cost))
+                        # cost = len(action_by_player)                         # Can be changed later
+                        list_new_states.append((action_by_player_directions, new_state, 1))
 
         # print("---Time 1: %s seconds ---" % (time.time() - start_time))
         # print(list_new_states)

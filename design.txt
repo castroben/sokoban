@@ -4,7 +4,15 @@
 
 'Level improving from ucs to ucs -d
 Level p5-level-1
-
+  ####
+###  ####
+# $     #
+#.  *#  #
+###.@#$##
+# . *#  #
+# $     #
+######  #
+     ####
 'Level improving from ucs -d to f -d
 Level p5-level-2
 
