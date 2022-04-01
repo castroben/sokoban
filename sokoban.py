@@ -124,8 +124,7 @@ class SokobanProblem(util.SearchProblem):
                 self.valid_box_pos.append(target)
                 visited = []
                 self.simple_deadlock(target, visited)
-        self.valid_box_pos = sorted(self.valid_box_pos)
-        
+        self.valid_box_pos = sorted(list(set(self.valid_box_pos)))
         self.find_valid_moves_per_location()
 
         # Need to find the valid positions the player can move
@@ -133,6 +132,9 @@ class SokobanProblem(util.SearchProblem):
         for pos in self.valid_box_pos:
             self.find_valid_player_pos(pos)
         self.valid_player_pos = sorted(self.valid_player_pos)
+
+        # print(self.valid_box_pos)
+        # print(self.valid_player_pos)
 
         # Valid moves a box can make at a certain location without going to a dead end
         # for key, value in self.valid_moves_per_location.items():
@@ -324,15 +326,22 @@ class SokobanProblemFaster(SokobanProblem):
     # code in the file in total. Your can vary substantially from this.          #
     ##############################################################################
     def expand(self, s):
+        # self.print_state(s)
         list_new_states = []
 
-        # Update the valid positions a player and box can move to
+        # start_time = time.time()
+        # Update the valid posi tions a player and box can move to
         self.update_valid_loc_box_player(s)
+        # print(self.valid_box_pos_in_current_state)
+        # print(self.valid_player_pos_in_current_state)
 
         for i, box_loc in enumerate(s.boxes()):
             # print(f"For {box_loc}")
+            # Checking the possible movements the box can make
             valid_moves_box_loc = list(self.valid_moves_per_location[str(box_loc)])
+            # udlr
             for move in valid_moves_box_loc:
+                # Checking that if the box can move to that location
                 player_dest_to_move_box, moved_box_pos, is_pos_valid = self.move_box(
                     box_coordinates=box_loc,
                     direction=move
@@ -352,12 +361,12 @@ class SokobanProblemFaster(SokobanProblem):
                         cost = len(action_by_player)                         # Can be changed later
                         list_new_states.append((action_by_player_directions, new_state, cost))
 
+        # print("---Time 1: %s seconds ---" % (time.time() - start_time))
         # print(list_new_states)
         # for new_state in list_new_states:
         #     print(f"Action: {new_state[0]}")
         #     print(f"New State: {new_state[1]}")
         #     print(f"Cost: {new_state[2]}")
-
         return list_new_states
 
     def update_valid_loc_box_player(self, s):
@@ -365,11 +374,18 @@ class SokobanProblemFaster(SokobanProblem):
         self.valid_player_pos_in_current_state = self.valid_player_pos.copy()
 
         # print(f"PRE {self.valid_box_pos_in_current_state}")
+        # print("======")
+
         for box_loc in s.boxes():
             if box_loc in self.valid_box_pos_in_current_state:
+                # print(self.valid_box_pos_in_current_state)
                 self.valid_box_pos_in_current_state.remove(box_loc)
+                # print(self.valid_box_pos_in_current_state)
+
             if box_loc in self.valid_player_pos_in_current_state:
                 self.valid_player_pos_in_current_state.remove(box_loc)
+        # print("======")
+
         # print(f"UPDATE {self.valid_box_pos_in_current_state}")
         return
 
