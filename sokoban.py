@@ -324,7 +324,68 @@ class SokobanProblemFaster(SokobanProblem):
     # algorithm. Feel free to make any changes anywhere in the code.             #
     # Our solution to this problem affects or adds approximately 80 lines of     #
     # code in the file in total. Your can vary substantially from this.          #
-    ##############################################################################
+    ##############################################################################    
+    def find_reachable_positions(self, position, boxes, reachable_positions, visited_positions):
+        if position in visited_positions:
+            return
+        
+        visited_positions.append(position)
+        candidates = [(position[0]+1, position[1]), (position[0]-1, position[1]), (position[0], position[1]+1), (position[0], position[1]-1)]
+        if self.map[position[0]][position[1]].floor and position not in boxes:
+            reachable_positions.append(position)
+            for candidate in candidates:
+                self.find_reachable_positions(candidate, boxes, reachable_positions, visited_positions)
+
+    
+    def expand2(self, s):
+        player = s.player()
+        boxes = s.boxes()
+        result = []
+        reachable_positions = []
+        visited_positions = []
+        candidates = [(player[0]+1, player[1]), (player[0]-1, player[1]), (player[0], player[1]+1), (player[0], player[1]-1)]
+        
+        for candidate in candidates:
+            self.find_reachable_positions(candidate, boxes, reachable_positions, visited_positions)
+        
+        reachable_positions = sorted(reachable_positions)
+        for i, box in enumerate(boxes):
+
+            if (box[0]+1, box[1]) in reachable_positions: # player can get below the box
+                if (box[0]-1, box[1]) in self.valid_box_pos and (box[0]-1, box[1]) not in boxes: # box can be moved up
+                    # append box movement to action list
+                    new_box_locations = list(boxes).copy()
+                    new_box_locations[i] = (box[0]-1, box[1]) # change location of current box
+                    new_state = SokobanState(box, tuple(new_box_locations))
+                    result.append(((box, 'u'), new_state, 1))
+
+
+            if (box[0]-1, box[1]) in reachable_positions: # player can get above the box
+                if (box[0]+1, box[1]) in self.valid_box_pos and (box[0]+1, box[1]) not in boxes: # box can be moved down
+                    # append box movement to action list
+                    new_box_locations = list(boxes).copy()
+                    new_box_locations[i] = (box[0]+1, box[1]) # change location of current box
+                    new_state = SokobanState(box, tuple(new_box_locations))
+                    result.append(((box, 'd'), new_state, 1))
+
+            if (box[0], box[1]+1) in reachable_positions: # player can get to the right of the box
+                if (box[0], box[1]-1) in self.valid_box_pos and (box[0], box[1]-1) not in boxes: # box can be moved left
+                    # append box movement to action list
+                    new_box_locations = list(boxes).copy()
+                    new_box_locations[i] = (box[0], box[1]-1) # change location of current box
+                    new_state = SokobanState(box, tuple(new_box_locations))
+                    result.append(((box, 'l'), new_state, 1))
+
+            if (box[0], box[1]-1) in reachable_positions: # player can get to the left of the box
+                if (box[0], box[1]+1) in self.valid_box_pos and (box[0], box[1]+1) not in boxes: # box can be moved right
+                    # append box movement to action list    
+                    new_box_locations = list(boxes).copy()
+                    new_box_locations[i] = (box[0], box[1]+1) # change location of current box
+                    new_state = SokobanState(box, tuple(new_box_locations))
+                    result.append(((box, 'r'), new_state, 1))
+
+        return result
+    
     def expand(self, s):
         # self.print_state(s)
         list_new_states = []
@@ -341,7 +402,7 @@ class SokobanProblemFaster(SokobanProblem):
             valid_moves_box_loc = list(self.valid_moves_per_location[str(box_loc)])
             # udlr
             for move in valid_moves_box_loc:
-                # Checking that if the box can move to that location
+                # Checking that the box can move to that location
                 player_dest_to_move_box, moved_box_pos, is_pos_valid = self.move_box(
                     box_coordinates=box_loc,
                     direction=move
