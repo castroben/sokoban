@@ -72,8 +72,6 @@ class SokobanState:
         return self.all_adj_cache
 
 
-
-
 class MapTile:
     def __init__(self, wall=False, floor=False, target=False):
         self.wall = wall
@@ -113,9 +111,9 @@ class SokobanProblem(util.SearchProblem):
         self.targets = []
         self.valid_box_pos = []
         self.valid_player_pos = []
-        self.valid_player_pos_in_current_state = []
-        self.valid_box_pos_in_current_state = []
-        self.valid_moves_per_location = {}
+        # self.valid_player_pos_in_current_state = []
+        # self.valid_box_pos_in_current_state = []
+        # self.valid_moves_per_location = {}
         self.parse_map(map)
 
         # Dead-end Detection Computation - self.valid_box_pos will hold all "not-dead" box locations
@@ -124,14 +122,14 @@ class SokobanProblem(util.SearchProblem):
                 self.valid_box_pos.append(target)
                 visited = []
                 self.simple_deadlock(target, visited)
-        self.valid_box_pos = sorted(list(set(self.valid_box_pos)))
-        self.find_valid_moves_per_location()
+        self.valid_box_pos = list(set(self.valid_box_pos))
+        # self.find_valid_moves_per_location()
 
         # Need to find the valid positions the player can move
         self.valid_player_pos = self.valid_box_pos.copy()
         for pos in self.valid_box_pos:
             self.find_valid_player_pos(pos)
-        self.valid_player_pos = sorted(self.valid_player_pos)
+        self.valid_player_pos = self.valid_player_pos
 
         # print(self.valid_box_pos)
         # print(self.valid_player_pos)
@@ -155,26 +153,26 @@ class SokobanProblem(util.SearchProblem):
             return
         return
 
-    def find_valid_moves_per_location(self):
-        for pos in self.valid_box_pos:
-            self.valid_moves_per_location[str(pos)] = ""
-            self.find_valid_moves_helper(pos[0], pos[1], pos)
-        return
-
-    def find_valid_moves_helper(self, curr_row, curr_col, pos):
-        # check if position to the right is available
-        if (curr_row+1, curr_col) in self.valid_box_pos and self.map[curr_row - 1][curr_col].floor:
-            self.valid_moves_per_location[str(pos)] += 'd'
-        # check if position to the left is available
-        if (curr_row - 1, curr_col) in self.valid_box_pos and self.map[curr_row + 1][curr_col].floor:
-            self.valid_moves_per_location[str(pos)] += 'u'
-        # check if position up is available
-        if (curr_row, curr_col - 1) in self.valid_box_pos and self.map[curr_row][curr_col + 1].floor:
-            self.valid_moves_per_location[str(pos)] += 'l'
-        # check if position down is available
-        if (curr_row, curr_col + 1) in self.valid_box_pos and self.map[curr_row][curr_col - 1].floor:
-            self.valid_moves_per_location[str(pos)] += 'r'
-        return
+    # def find_valid_moves_per_location(self):
+    #     for pos in self.valid_box_pos:
+    #         self.valid_moves_per_location[str(pos)] = ""
+    #         self.find_valid_moves_helper(pos[0], pos[1], pos)
+    #     return
+    #
+    # def find_valid_moves_helper(self, curr_row, curr_col, pos):
+    #     # check if position to the right is available
+    #     if (curr_row+1, curr_col) in self.valid_box_pos and self.map[curr_row - 1][curr_col].floor:
+    #         self.valid_moves_per_location[str(pos)] += 'd'
+    #     # check if position to the left is available
+    #     if (curr_row - 1, curr_col) in self.valid_box_pos and self.map[curr_row + 1][curr_col].floor:
+    #         self.valid_moves_per_location[str(pos)] += 'u'
+    #     # check if position up is available
+    #     if (curr_row, curr_col - 1) in self.valid_box_pos and self.map[curr_row][curr_col + 1].floor:
+    #         self.valid_moves_per_location[str(pos)] += 'l'
+    #     # check if position down is available
+    #     if (curr_row, curr_col + 1) in self.valid_box_pos and self.map[curr_row][curr_col - 1].floor:
+    #         self.valid_moves_per_location[str(pos)] += 'r'
+    #     return
 
     def can_pull_to(self, candidate, pos):
         if self.map[candidate[0]][candidate[1]].wall:
@@ -348,7 +346,7 @@ class SokobanProblemFaster(SokobanProblem):
         for candidate in candidates:
             self.find_reachable_positions(candidate, boxes, reachable_positions, visited_positions)
         
-        reachable_positions = sorted(reachable_positions)
+        reachable_positions = reachable_positions
         for i, box in enumerate(boxes):
             if (box[0]+1, box[1]) in reachable_positions: # player can get below the box
                 if (box[0]-1, box[1]) in self.valid_box_pos and (box[0]-1, box[1]) not in boxes: # box can be moved up
@@ -383,69 +381,6 @@ class SokobanProblemFaster(SokobanProblem):
                     result.append(((box, 'r'), new_state, 1))
 
         return result
-    
-    # def expand(self, s):
-    #     # self.print_state(s)
-    #     list_new_states = []
-    #
-    #     # start_time = time.time()
-    #     # Update the valid posi tions a player and box can move to
-    #     self.update_valid_loc_box_player(s)
-    #     # print(self.valid_box_pos_in_current_state)
-    #     # print(self.valid_player_pos_in_current_state)
-    #
-    #     for i, box_loc in enumerate(s.boxes()):
-    #         # print(f"For {box_loc}")
-    #         # Checking the possible movements the box can make
-    #         valid_moves_box_loc = list(self.valid_moves_per_location[str(box_loc)])
-    #         # udlr
-    #         for move in valid_moves_box_loc:
-    #             # Checking that the box can move to that location
-    #             player_dest_to_move_box, moved_box_pos, is_pos_valid = self.move_box(
-    #                 box_coordinates=box_loc,
-    #                 direction=move
-    #             )
-    #             if is_pos_valid:
-    #                 action_by_player = self.find_shortest_path_to_location_move_player(
-    #                     desired_location_player=player_dest_to_move_box,
-    #                     start_location_player=s.player()
-    #                 )
-    #                 if action_by_player is not None:
-    #                     action_by_player.append(box_loc)
-    #                     action_by_player_directions = directions_of_path(action_by_player)
-    #                     boxes_new_state = list(s.boxes()).copy()
-    #                     boxes_new_state[i] = moved_box_pos
-    #                     # box_loc ends up being final player location
-    #                     new_state = SokobanState(box_loc, tuple(boxes_new_state))
-    #                     # cost = len(action_by_player)                         # Can be changed later
-    #                     list_new_states.append((action_by_player_directions, new_state, 1))
-    #
-    #     # print("---Time 1: %s seconds ---" % (time.time() - start_time))
-    #     # print(list_new_states)
-    #     # for new_state in list_new_states:
-    #     #     print(f"Action: {new_state[0]}")
-    #     #     print(f"New State: {new_state[1]}")
-    #     #     print(f"Cost: {new_state[2]}")
-    #     return list_new_states
-    # def update_valid_locations_box_and_player(self, s):
-    #     self.valid_box_pos_in_current_state = self.valid_box_pos.copy()
-    #     self.valid_player_pos_in_current_state = self.valid_player_pos.copy()
-    #
-    #     # print(f"PRE {self.valid_box_pos_in_current_state}")
-    #     # print("======")
-    #
-    #     for box_loc in s.boxes():
-    #         if box_loc in self.valid_box_pos_in_current_state:
-    #             # print(self.valid_box_pos_in_current_state)
-    #             self.valid_box_pos_in_current_state.remove(box_loc)
-    #             # print(self.valid_box_pos_in_current_state)
-    #
-    #         # if box_loc in self.valid_player_pos_in_current_state:         # Change for expand2
-    #         #     self.valid_player_pos_in_current_state.remove(box_loc)
-    #     # print("======")
-    #
-    #     # print(f"UPDATE {self.valid_box_pos_in_current_state}")
-    #     return
 
 
 # Given a certain path of coordinates, returns the "rldu" directions
