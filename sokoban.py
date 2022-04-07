@@ -500,22 +500,22 @@ def find_player_path(search, init_player, init_boxes, problem):
 
         if is_available:
             # Find the shortest path the player needs to do to move the box
-            player_path += find_shortest_path_to_location_move_player(
+            temp_path = []
+            find_quickest_path_to_location_move_player(
                 desired_location_player=location_for_player_to_move_box,
                 start_location_player=state_player,
                 problem=problem,
-                state_boxes=state_boxes
+                state_boxes=state_boxes,
+                visited=set(),
+                path = temp_path
             )
-
+            temp_path.append(get_direction(location_for_player_to_move_box, box_coordinates))
+            player_path += temp_path
             # Update state
             state_player = box_coordinates
             state_boxes[box_to_move_id] = destination_loc_box
 
-    player_path += [box_coordinates]
-
-    directions_path = directions_of_path(player_path)
-
-    return directions_path
+    return player_path
 
 
 def move_box(box_coordinates, direction, valid_positions_player):
@@ -548,6 +548,31 @@ def move_box(box_coordinates, direction, valid_positions_player):
     #     return None, None, False
     return player_destination_coordinates_to_move_box, desired_location_to_move, is_position_available
 
+def get_direction(start, end):
+    if end == (start[0]+1, start[1]):
+        return 'd'
+    elif end == (start[0]-1, start[1]):
+        return 'u'
+    elif end == (start[0], start[1]+1):
+        return 'r'
+    elif end == (start[0], start[1]-1):
+        return 'l'
+
+def find_quickest_path_to_location_move_player(desired_location_player, start_location_player, problem, state_boxes, visited, path):
+    if start_location_player == desired_location_player:
+        return True
+
+    visited.add(start_location_player)
+    candidates = [(start_location_player[0]+1,start_location_player[1]), (start_location_player[0]-1,start_location_player[1]), (start_location_player[0],start_location_player[1]+1), (start_location_player[0],start_location_player[1]-1)]
+    
+    for candidate in candidates:
+        if (candidate not in visited) and (candidate in problem.valid_player_pos) and (candidate not in state_boxes):
+            if find_quickest_path_to_location_move_player(desired_location_player, candidate, problem, state_boxes, visited, path):
+                direction = get_direction(start_location_player, candidate)
+                path.insert(0, direction)
+                return True
+    
+    return False
 
 def find_shortest_path_to_location_move_player(desired_location_player, start_location_player, problem, state_boxes):
     # Use BFS to find the shortest path to a given position. The problem is that to move the player we need all
