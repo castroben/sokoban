@@ -322,84 +322,64 @@ class SokobanProblemFaster(SokobanProblem):
     # Our solution to this problem affects or adds approximately 80 lines of     #
     # code in the file in total. Your can vary substantially from this.          #
     ##############################################################################
-
-    def find_reachable_positions(self, position, boxes, reachable_positions, visited_positions):
-        if position in visited_positions:
-            return
-        
-        visited_positions.append(position)
-        candidates = [(position[0]+1, position[1]), (position[0]-1, position[1]), (position[0], position[1]+1), (position[0], position[1]-1)]
-        if self.map[position[0]][position[1]].floor and position not in boxes:
-            reachable_positions.append(position)
-            for candidate in candidates:
-                self.find_reachable_positions(candidate, boxes, reachable_positions, visited_positions)
-
-    def expand(self, s):
-        player = s.player()
-        boxes = s.boxes()
-        result = []
-        reachable_positions = []
-        visited_positions = []
-        candidates = [(player[0]+1, player[1]), (player[0]-1, player[1]), (player[0], player[1]+1), (player[0], player[1]-1)]
-        # self.update_valid_locations_box_and_player(s)         # updates pos
-        
-        for candidate in candidates:
-            self.find_reachable_positions(candidate, boxes, reachable_positions, visited_positions)
-        
-        reachable_positions = reachable_positions
-        for i, box in enumerate(boxes):
-            if (box[0]+1, box[1]) in reachable_positions: # player can get below the box
+    def check_box_movement(self, player, box, boxes, possible_box_movements):
+            if (box[0]+1, box[1]) == player: # player is below box
                 if (box[0]-1, box[1]) in self.valid_box_pos and (box[0]-1, box[1]) not in boxes: # box can be moved up
                     # append box movement to action list
                     new_box_locations = list(boxes).copy()
-                    new_box_locations[i] = (box[0]-1, box[1]) # change location of current box
+                    new_box_locations[boxes.index(box)] = (box[0]-1, box[1]) # change location of current box in copy of boxes
                     new_state = SokobanState(box, tuple(new_box_locations))
-                    result.append(((box, 'u'), new_state, 1))
+                    possible_box_movements.append(((box, 'u'), new_state, 1))
 
-            if (box[0]-1, box[1]) in reachable_positions: # player can get above the box
+            if (box[0]-1, box[1]) == player: # player is above box
                 if (box[0]+1, box[1]) in self.valid_box_pos and (box[0]+1, box[1]) not in boxes: # box can be moved down
                     # append box movement to action list
                     new_box_locations = list(boxes).copy()
-                    new_box_locations[i] = (box[0]+1, box[1]) # change location of current box
+                    new_box_locations[boxes.index(box)] = (box[0]+1, box[1]) # change location of current box in copy of boxes
                     new_state = SokobanState(box, tuple(new_box_locations))
-                    result.append(((box, 'd'), new_state, 1))
+                    possible_box_movements.append(((box, 'd'), new_state, 1))
 
-            if (box[0], box[1]+1) in reachable_positions: # player can get to the right of the box
+            if (box[0], box[1]+1) == player: # player is to the right of the box
                 if (box[0], box[1]-1) in self.valid_box_pos and (box[0], box[1]-1) not in boxes: # box can be moved left
                     # append box movement to action list
-                    new_box_locations = list(boxes).copy()
-                    new_box_locations[i] = (box[0], box[1]-1) # change location of current box
+                    new_box_locations = list(boxes).copy() # make copy of boxes
+                    new_box_locations[boxes.index(box)] = (box[0], box[1]-1) # change location of current box in copy of boxes
                     new_state = SokobanState(box, tuple(new_box_locations))
-                    result.append(((box, 'l'), new_state, 1))
+                    possible_box_movements.append(((box, 'l'), new_state, 1))
 
-            if (box[0], box[1]-1) in reachable_positions: # player can get to the left of the box
+            if (box[0], box[1]-1) == player: # player is to the left of the box
                 if (box[0], box[1]+1) in self.valid_box_pos and (box[0], box[1]+1) not in boxes: # box can be moved right
                     # append box movement to action list    
                     new_box_locations = list(boxes).copy()
-                    new_box_locations[i] = (box[0], box[1]+1) # change location of current box
+                    new_box_locations[boxes.index(box)] = (box[0], box[1]+1) # change location of current box in copy of boxes
                     new_state = SokobanState(box, tuple(new_box_locations))
-                    result.append(((box, 'r'), new_state, 1))
+                    possible_box_movements.append(((box, 'r'), new_state, 1))
+    
+    def find_box_movement(self, position, boxes, visited_positions, possible_box_movements):
+        if position in visited_positions:
+            return
+        visited_positions.append(position)
+        popo = self.map[position[0]][position[1]]
 
-        return result
+        if not self.map[position[0]][position[1]].floor or position in boxes:
+            return
 
+        candidates = [(position[0]+1, position[1]), (position[0]-1, position[1]), (position[0], position[1]+1), (position[0], position[1]-1)]
+        for candidate in candidates:
+            if candidate in boxes: # next position to explore is a box
+                self.check_box_movement(position, candidate, boxes, possible_box_movements) # check if box can be moved
+            else:
+                self.find_box_movement(candidate, boxes, visited_positions, possible_box_movements)
+    
+    def expand(self, s):
+        player = s.player()
+        boxes = s.boxes()
+        visited_positions = []
+        possible_box_movements = []
+        
+        self.find_box_movement(player, boxes, visited_positions, possible_box_movements)
 
-# Given a certain path of coordinates, returns the "rldu" directions
-def directions_of_path(path):
-    directions = []
-    prev_position = None
-    for pos in path:
-        if prev_position is not None:
-            diff_row, diff_col = pos[0] - prev_position[0], pos[1] - prev_position[1]
-            if diff_row == -1:
-                directions.append('u')
-            elif diff_row == 1:
-                directions.append('d')
-            elif diff_col == -1:
-                directions.append('l')
-            elif diff_col == 1:
-                directions.append('r')
-        prev_position = pos
-    return directions
+        return possible_box_movements
 
 
 class Heuristic:
@@ -543,9 +523,7 @@ def move_box(box_coordinates, direction, valid_positions_player):
         desired_location_to_move = (box_coordinates[0]-1, box_coordinates[1])
         if desired_location_to_move in valid_positions_player:
             is_position_available = True
-    # else:
-    #     print("Can't move the box to this location")
-    #     return None, None, False
+            
     return player_destination_coordinates_to_move_box, desired_location_to_move, is_position_available
 
 def get_direction(start, end):
@@ -574,38 +552,38 @@ def find_quickest_path_to_location_move_player(desired_location_player, start_lo
     
     return False
 
-def find_shortest_path_to_location_move_player(desired_location_player, start_location_player, problem, state_boxes):
-    # Use BFS to find the shortest path to a given position. The problem is that to move the player we need all
-    # the positions the player can move to, basically all the ones inside the box
-    queue = collections.deque([[start_location_player]])
-    seen = {start_location_player}
-    while queue:
-        path = queue.popleft()
-        x, y = path[-1]
-        if (x, y) == desired_location_player:
-            # print(f"Path: {path}")
-            return path
+# def find_shortest_path_to_location_move_player(desired_location_player, start_location_player, problem, state_boxes):
+#     # Use BFS to find the shortest path to a given position. The problem is that to move the player we need all
+#     # the positions the player can move to, basically all the ones inside the box
+#     queue = collections.deque([[start_location_player]])
+#     seen = {start_location_player}
+#     while queue:
+#         path = queue.popleft()
+#         x, y = path[-1]
+#         if (x, y) == desired_location_player:
+#             # print(f"Path: {path}")
+#             return path
 
-        adj_loc = find_adj_loc((x, y), problem.valid_player_pos, state_boxes)
+#         adj_loc = find_adj_loc((x, y), problem.valid_player_pos, state_boxes)
 
-        for x2, y2 in adj_loc:
-            if (x2, y2) not in seen:
-                queue.append(path + [(x2, y2)])
-                seen.add((x2, y2))
-    return None
+#         for x2, y2 in adj_loc:
+#             if (x2, y2) not in seen:
+#                 queue.append(path + [(x2, y2)])
+#                 seen.add((x2, y2))
+#     return None
 
 
-def find_adj_loc(loc, valid_player_positions, state_boxes):
-    adj_loc = []
-    if (loc[0]+1, loc[1]) in valid_player_positions and (loc[0]+1, loc[1]) not in state_boxes:
-        adj_loc.append((loc[0]+1, loc[1]))
-    if (loc[0]-1, loc[1]) in valid_player_positions and (loc[0]-1, loc[1]) not in state_boxes:
-        adj_loc.append((loc[0]-1, loc[1]))
-    if (loc[0], loc[1]+1) in valid_player_positions and (loc[0], loc[1]+1) not in state_boxes:
-        adj_loc.append((loc[0], loc[1]+1))
-    if (loc[0], loc[1]-1) in valid_player_positions and (loc[0], loc[1]-1) not in state_boxes:
-        adj_loc.append((loc[0], loc[1]-1))
-    return adj_loc
+# def find_adj_loc(loc, valid_player_positions, state_boxes):
+#     adj_loc = []
+#     if (loc[0]+1, loc[1]) in valid_player_positions and (loc[0]+1, loc[1]) not in state_boxes:
+#         adj_loc.append((loc[0]+1, loc[1]))
+#     if (loc[0]-1, loc[1]) in valid_player_positions and (loc[0]-1, loc[1]) not in state_boxes:
+#         adj_loc.append((loc[0]-1, loc[1]))
+#     if (loc[0], loc[1]+1) in valid_player_positions and (loc[0], loc[1]+1) not in state_boxes:
+#         adj_loc.append((loc[0], loc[1]+1))
+#     if (loc[0], loc[1]-1) in valid_player_positions and (loc[0], loc[1]-1) not in state_boxes:
+#         adj_loc.append((loc[0], loc[1]-1))
+#     return adj_loc
 
 
 # let the user play the map
